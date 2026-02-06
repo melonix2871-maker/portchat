@@ -195,7 +195,7 @@
         await engine.reload(modelId, {
           // Constrain KV cache and context to avoid GPU OOM on iGPU
           context_window_size: 2048,
-          sliding_window_size: 1024,
+          sliding_window_size: -1,
           attention_sink_size: 160,
           temperature: 0.7
         });
@@ -263,7 +263,7 @@
             });
             await engine.reload(modelSelect.value, {
               context_window_size: 1024,
-              sliding_window_size: 512,
+              sliding_window_size: -1,
               attention_sink_size: 128,
               temperature: 0.7
             });
