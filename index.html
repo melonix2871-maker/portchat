@@ -162,6 +162,8 @@
     const sendBtn         = document.getElementById("send-btn");
     const modelSelect     = document.getElementById("model-select");
     const lowVram         = document.getElementById("low-vram");
+    let engineReady       = false;
+    let generating        = false;
 
     // Auto-resize input
     userInput.addEventListener("input", () => {
@@ -216,9 +218,11 @@
         userInput.focus();
 
         addMessage("assistant", `Loaded **${modelSelect.options[modelSelect.selectedIndex].text}** successfully with reduced context for stability.\nAsk me anything 🚀`);
+        engineReady = true;
       } catch (err) {
         statusEl.textContent = "Error: " + err.message;
         console.error(err);
+        engineReady = false;
       }
     }
 
@@ -229,13 +233,14 @@
     // ────────────────────────────────────────────────
     async function sendMessage() {
       const text = userInput.value.trim();
-      if (!text || !engine) return;
+      if (!text || !engine || !engineReady || generating) return;
 
       addMessage("user", text);
       userInput.value = "";
       userInput.style.height = "auto";
       sendBtn.disabled = true;
       userInput.disabled = true;
+      generating = true;
 
       messages.push({ role: "user", content: text });
 
@@ -282,8 +287,35 @@
             userInput.disabled = false;
             replyDiv.textContent = "Recovery complete. Please resend your question.";
             addMessage("assistant", "Tip: If GPU errors repeat, toggle Low VRAM mode or use a Remote API endpoint for stable performance.");
+            engineReady = true;
+            generating = false;
+            return;
           } catch (e2) {
             replyDiv.textContent = "Recovery failed: " + (e2?.message || String(e2));
+            engineReady = false;
+          }
+        } else if (msg.includes("Tokenizer*") || msg.includes("Buffer unmapped") || msg.includes("BindGroup")) {
+          try {
+            statusEl.textContent = "Engine validation error; reinitializing with Low VRAM…";
+            if (engine) { try { await engine.resetChat(true); } catch {} }
+            engine = new MLCEngine({
+              initProgressCallback: report => {
+                statusEl.textContent = report.text || "Reinitializing…";
+              }
+            });
+            modelSelect.value = "TinyLlama-1.1B-Chat-v1.0-q4f32_1-MLC";
+            await engine.reload(modelSelect.value, {
+              context_window_size: 768,
+              sliding_window_size: -1,
+              attention_sink_size: 96,
+              temperature: 0.7
+            });
+            statusEl.textContent = "Recovered – TinyLlama (Low VRAM) ready";
+            replyDiv.textContent = "Recovery complete. Please resend your question.";
+            engineReady = true;
+          } catch (e3) {
+            replyDiv.textContent = "Recovery failed: " + (e3?.message || String(e3));
+            engineReady = false;
           }
         } else {
           replyDiv.textContent = "Error: " + msg;
@@ -294,6 +326,7 @@
       sendBtn.disabled = false;
       userInput.disabled = false;
       userInput.focus();
+      generating = false;
     }
 
     function addMessage(role, content) {
