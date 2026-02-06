@@ -121,12 +121,10 @@
 
   <header>
     <h1>PortChat – Local AI</h1>
-  <select id="model-select">
-  <option value="RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC">RedPajama 3B (fast & very stable)</option>
-  <option value="TinyLlama-1.1B-Chat-v1.0-q4f32_1-MLC">TinyLlama 1.1B (smallest & fastest load)</option>
-  <option value="Phi-2-q4f32_1-MLC">Phi-2 (good quality, reliable)</option>
-  <option value="gemma-2b-it-q4f32_1-MLC">Gemma 2B (newer, try this)</option>
-  <option value="Llama-3.2-1B-Instruct-q4f32_1-MLC">Llama-3.2 1B (q4f32 – more compatible)</option>
+     <select id="model-select">
+  <option value="TinyLlama-1.1B-Chat-v1.0-q4f32_1-MLC">TinyLlama 1.1B – fastest & most compatible</option>
+  <option value="RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC">RedPajama 3B – very stable</option>
+  <option value="Phi-2-q4f32_1-MLC">Phi-2 – good quality & reliable</option>
 </select>
   </header>
 
@@ -144,10 +142,10 @@
     //   Correct modern import (2025–2026 versions)
     // ────────────────────────────────────────────────
     //import { CreateMLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.48/+esm";
-    import { CreateMLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm";
+    //import { CreateMLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm";
 
     // You can also try latest:
-    // import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
     let engine = null;
     let messages = [
