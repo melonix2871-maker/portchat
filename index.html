@@ -63,7 +63,8 @@
         </div>
         <div class="row browser-only">
           <label>Model ID</label>
-          <input id="modelId" type="text" value="Phi-3-mini-4k-instruct-q4f16_1-MLC">
+          <input id="modelId" type="text" list="modelList" placeholder="Select or type a model">
+          <datalist id="modelList"></datalist>
         </div>
         <div class="row remote-only hidden">
           <label>Remote API Base</label>
@@ -115,10 +116,20 @@
   </main>
   <script type="module">
     import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+    // Filter one noisy warning
+    (function(){
+      const origWarn = console.warn;
+      console.warn = function(...args){
+        const s = String(args[0] || "");
+        if (s.includes("powerPreference option is currently ignored")) return;
+        return origWarn.apply(console, args);
+      };
+    })();
     const gpuStatus = document.getElementById("gpuStatus");
     const engineStatus = document.getElementById("engineStatus");
     const modeSel = document.getElementById("mode");
     const modelIdInput = document.getElementById("modelId");
+    const modelListEl = document.getElementById("modelList");
     const apiBaseInput = document.getElementById("apiBase");
     const temperatureInput = document.getElementById("temperature");
     const topPInput = document.getElementById("topP");
@@ -170,6 +181,26 @@
         localStorage.setItem("portable_ai_chat", JSON.stringify(s));
       }
     };
+
+    function populateModelList() {
+      try {
+        const models = (webllm.prebuiltAppConfig && webllm.prebuiltAppConfig.model_list) || [];
+        modelListEl.innerHTML = "";
+        const opts = [];
+        for (const rec of models) {
+          const id = rec?.model_id || rec?.model || rec;
+          if (!id || typeof id !== "string") continue;
+          const opt = document.createElement("option");
+          opt.value = id;
+          opts.push(opt);
+        }
+        opts.forEach(o => modelListEl.appendChild(o));
+        if (!modelIdInput.value) {
+          const preferred = opts.map(o => o.value).find(v => /mini/i.test(v) && /instruct/i.test(v)) || (opts[0]?.value || "");
+          modelIdInput.value = preferred;
+        }
+      } catch {}
+    }
 
     let engine = null;
     let streaming = false;
@@ -393,6 +424,7 @@
 
     updateModeUI();
     webgpuDetect();
+    populateModelList();
     populateGPUDetails();
     storage.load();
     if (modeSel.value === "browser" && navigator.gpu) ensureEngine();
