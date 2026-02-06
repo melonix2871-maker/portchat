@@ -144,8 +144,8 @@
     //import { CreateMLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.48/+esm";
     //import { CreateMLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm";
 
-    // You can also try latest:
-    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+    // Pinned CDN import for stability (JSDelivr ESM)
+    import { MLCEngine } from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.80/+esm";
 
     let engine = null;
     let messages = [
@@ -186,22 +186,26 @@
       userInput.disabled = true;
 
       try {
-        // Create new engine with selected model
-        engine = await CreateMLCEngine(
-          modelId,
-          {
-            initProgressCallback: report => {
-              statusEl.textContent = report.text;
-            }
+        // Create engine, then load model with constrained chat opts to reduce VRAM usage
+        engine = new MLCEngine({
+          initProgressCallback: report => {
+            statusEl.textContent = report.text || "Downloading model files…";
           }
-        );
+        });
+        await engine.reload(modelId, {
+          // Constrain KV cache and context to avoid GPU OOM on iGPU
+          context_window_size: 2048,
+          sliding_window_size: 1024,
+          attention_sink_size: 160,
+          temperature: 0.7
+        });
 
-        statusEl.textContent = `Ready – using ${modelSelect.options[modelSelect.selectedIndex].text}`;
+        statusEl.textContent = `Ready – using ${modelSelect.options[modelSelect.selectedIndex].text} (Fast Mode)`;
         sendBtn.disabled = false;
         userInput.disabled = false;
         userInput.focus();
 
-        addMessage("assistant", `Loaded **${modelSelect.options[modelSelect.selectedIndex].text}** successfully!\nAsk me anything 🚀`);
+        addMessage("assistant", `Loaded **${modelSelect.options[modelSelect.selectedIndex].text}** successfully with reduced context for stability.\nAsk me anything 🚀`);
       } catch (err) {
         statusEl.textContent = "Error: " + err.message;
         console.error(err);
@@ -233,7 +237,7 @@
           messages,
           stream: true,
           temperature: 0.7,
-          max_gen_len: 1024,
+          max_gen_len: 512
         });
 
         for await (const chunk of stream) {
@@ -245,8 +249,35 @@
 
         messages.push({ role: "assistant", content: fullText });
       } catch (err) {
-        replyDiv.textContent = "Error: " + err.message;
-        console.error(err);
+        const msg = String(err?.message || err);
+        // Handle GPU OOM / device lost gracefully by auto-downshifting
+        if (msg.includes("GPUOutOfMemoryError") || msg.includes("Device was lost")) {
+          statusEl.textContent = "GPU memory issue detected; switching to TinyLlama with smaller context…";
+          try {
+            // Switch to smallest model and tighter limits
+            modelSelect.value = "TinyLlama-1.1B-Chat-v1.0-q4f32_1-MLC";
+            engine = new MLCEngine({
+              initProgressCallback: report => {
+                statusEl.textContent = report.text || "Adjusting model…";
+              }
+            });
+            await engine.reload(modelSelect.value, {
+              context_window_size: 1024,
+              sliding_window_size: 512,
+              attention_sink_size: 128,
+              temperature: 0.7
+            });
+            statusEl.textContent = "Recovered – TinyLlama ready";
+            sendBtn.disabled = false;
+            userInput.disabled = false;
+            replyDiv.textContent = "Recovery complete. Please resend your question.";
+          } catch (e2) {
+            replyDiv.textContent = "Recovery failed: " + (e2?.message || String(e2));
+          }
+        } else {
+          replyDiv.textContent = "Error: " + msg;
+          console.error(err);
+        }
       }
 
       sendBtn.disabled = false;
@@ -263,7 +294,7 @@
       return div;
     }
 
-    // Start with the default (first) model
+    // Start with the default (first) model (TinyLlama) for fastest startup
     loadModel();
   </script>
 </body>
