@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.puter.com/v2/"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -416,7 +417,7 @@
   <div id="contact-backdrop" class="contact-backdrop">
     <div class="contact-modal">
       <h3>Contact Me</h3>
-      <form id="contact-form" action="https://formsubmit.co/romeo@qomi.eu" method="POST" target="_blank">
+      <form id="contact-form" action="https://formsubmit.co/meoasis2014@gmail.com" method="POST" target="_blank">
         <div class="contact-row">
           <input id="c-name" name="name" type="text" placeholder="Your name" required/>
         </div>
@@ -474,8 +475,11 @@
     let engineReady       = false;
     let generating        = false;
     let stopRequested     = false;
+    const isMobile        = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     const SEND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
     const STOP_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="#fff" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>';
+    let usePuter          = false;
+    let mobileModel       = 'gpt-5-nano';
 
     // Auto-resize input
     userInput.addEventListener("input", () => {
@@ -497,6 +501,16 @@
     //   Load / reload model when selection changes
     // ────────────────────────────────────────────────
     async function loadModel() {
+      // Mobile: always use Puter (no registration, no keys)
+      if (isMobile && window.puter) {
+        usePuter = true;
+        statusEl.textContent = "Mobile mode: using Puter LLM (no WebGPU required)";
+        engineReady = false;
+        sendBtn.disabled = false;
+        userInput.disabled = false;
+        return;
+      }
+      // Desktop: use selected WebLLM model
       const modelId = modelSelect.value;
       if (!modelId) return;
 
@@ -545,7 +559,7 @@
     // ────────────────────────────────────────────────
     async function sendMessage() {
       const text = userInput.value.trim();
-      if (!text || !engine || !engineReady || generating) return;
+      if (!text || generating) return;
 
       addMessage("user", text);
       userInput.value = "";
@@ -561,19 +575,33 @@
       let fullText = "";
 
       try {
-        const stream = await engine.chat.completions.create({
-          messages,
-          stream: true,
-          temperature: 0.7,
-          max_gen_len: lowVram.checked ? 256 : 384
-        });
-
-        for await (const chunk of stream) {
-          const delta = chunk.choices?.[0]?.delta?.content ?? "";
-          fullText += delta;
-          replyDiv.innerHTML = marked.parse(fullText);
-          chatContainer.scrollTop = chatContainer.scrollHeight;
-          if (stopRequested) break;
+        if (engineReady && navigator.gpu) {
+          const stream = await engine.chat.completions.create({
+            messages,
+            stream: true,
+            temperature: 0.7,
+            max_gen_len: lowVram.checked ? 256 : 384
+          });
+          for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta?.content ?? "";
+            fullText += delta;
+            replyDiv.innerHTML = marked.parse(fullText);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (stopRequested) break;
+          }
+        } else if (usePuter && window.puter) {
+          const response = await puter.ai.chat(text, { model: mobileModel, stream: true });
+          for await (const part of response) {
+            if (stopRequested) break;
+            const delta = part?.text || part?.message?.content?.[0]?.text || part?.content || "";
+            if (delta) {
+              fullText += delta;
+              replyDiv.innerHTML = marked.parse(fullText);
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+          }
+        } else {
+          replyDiv.textContent = "Mobile LLM not available. Ensure Puter is reachable or use a desktop with WebGPU.";
         }
 
         messages.push({ role: "assistant", content: fullText });
@@ -656,8 +684,8 @@
       return div;
     }
 
-    // Start with the default (first) model (TinyLlama) for fastest startup
     loadModel();
+    
 
     // Theme persistence and toggle
     (function initTheme() {
@@ -727,9 +755,9 @@
       const altMeta = e.metaKey && e.altKey;
       const isDevCombo =
         k === "F12" ||
-        (ctrlMeta && e.shiftKey && ["I","J","C","K","M","P"].includes(k)) ||
-        (ctrlMeta && k === "U") ||
-        (altMeta && ["I","J","C","U","M","P"].includes(k));
+        (ctrlMeta && e.shiftKey && ["I","J","C","K","M","P","S"].includes(k)) ||
+        (ctrlMeta && ["U","S","P"].includes(k)) ||
+        (altMeta && ["I","J","C","U","M","P","S"].includes(k));
       if (isDevCombo) {
         e.preventDefault();
         e.stopPropagation();
@@ -807,4 +835,3 @@
   </script>
 </body>
 </html>
-
