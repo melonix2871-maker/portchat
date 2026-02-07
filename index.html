@@ -504,7 +504,7 @@
       // Mobile: always use Puter (no registration, no keys)
       if (isMobile && window.puter) {
         usePuter = true;
-        statusEl.textContent = "Mobile mode: using Puter LLM (no WebGPU required)";
+        statusEl.textContent = "Mobile mode: using Puter LLM";
         engineReady = false;
         sendBtn.disabled = false;
         userInput.disabled = false;
@@ -835,3 +835,4 @@
   </script>
 </body>
 </html>
+
